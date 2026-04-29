@@ -1,3 +1,5 @@
 .env
 *.png
+*.tar
+*.tar.gz
 __pycache__/

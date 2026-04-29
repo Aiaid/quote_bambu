@@ -76,7 +76,15 @@ jobs:
       packages: write
     steps:
       - id: pmeta
-        run: echo "image=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          echo "image=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          # Docker Hub mirror: <user>/<repo-short>. Empty if secret not set,
+          # which gates the dockerhub login + tag steps below.
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            echo "dh_image=${DOCKERHUB_USERNAME}/${GITHUB_REPOSITORY##*/}" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/download-artifact@v4
         with:
@@ -92,10 +100,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        if: steps.pmeta.outputs.dh_image
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.pmeta.outputs.image }}
+          # Same tag set on both registries when Docker Hub creds are set;
+          # otherwise just GHCR.
+          images: |
+            ${{ env.REGISTRY }}/${{ steps.pmeta.outputs.image }}
+            ${{ steps.pmeta.outputs.dh_image }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -105,6 +124,10 @@ jobs:
       - name: create manifest list and push
         working-directory: /tmp/digests
         run: |
+          # imagetools create publishes a manifest list to every -t target.
+          # buildx copies blobs cross-registry as needed, so the same per-arch
+          # digests pushed to GHCR end up mirrored on Docker Hub without a
+          # second build.
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY }}/${{ steps.pmeta.outputs.image }}@sha256:%s ' *)

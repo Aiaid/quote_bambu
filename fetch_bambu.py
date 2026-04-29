@@ -535,10 +535,15 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
             draw.rectangle([rx - 1, ry, rx + 7, ry + 8], outline="black")
             mark = "*" if tr["active"] else " "
             ttype = tr["type"] if not tr["empty"] else "—"
-            label = f"{tr['label']}{mark} {ttype[:5]}"
+            prefix = f"{tr['label']}{mark} {ttype[:5]}"
+            draw.text((rx + 10, ry), prefix, font=fs, fill="black")
             if tr["remain"] >= 0 and not tr["empty"]:
-                label += f" {tr['remain']}%"
-            draw.text((rx + 10, ry), label, font=fs, fill="black")
+                pct_text = f"{tr['remain']}%"
+                try:
+                    pw = int(draw.textlength(pct_text, font=fs))
+                except AttributeError:
+                    pw = len(pct_text) * 6
+                draw.text((W - 4 - pw, ry), pct_text, font=fs, fill="black")
             ry += 11
     else:
         draw.text((rx, ry), "Ext spool", font=fs, fill="black"); ry += 11
