@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fetch Bambu Lab P2S local status (LAN MQTT) and push to Quote/0 as image."""
-import os, json, time, ssl, logging, base64, io, threading
+import os, sys, json, time, ssl, logging, base64, io, threading
 from datetime import datetime
 from typing import Optional, List
 from PIL import Image, ImageDraw, ImageFont
@@ -9,7 +9,7 @@ import requests
 
 import camera as _camera
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", stream=sys.stdout)
 log = logging.getLogger(__name__)
 
 
