@@ -71,7 +71,8 @@ If you change a render function, regenerate the previews and **read the `_x3.png
 - V2 protocol — PrintSphere's `printer_client.cpp` confirms LAN MQTT topics/commands are unchanged from P1S/X1
 - AMS field shape may differ slightly under V2 (`vir_slot` for filament info per PrintSphere README); current code uses common `ams.ams[].tray[]` structure
 - Camera is 1920×1080 16:9 at port 322 RTSPS — confirmed at https://wiki.bambulab.com/en/p2s
-- Printer must have Developer / LAN-only Mode toggled on in the screen UI, otherwise 8883/322 not exposed (post-2025 firmware Authorization Control)
+- **No Developer/LAN-only Mode required for read-only access on P2S.** In cloud mode, ports 8883 (MQTT) and 322 (RTSPS) are still open to anyone on the LAN with the access code. The 2025 Authorization Control gates *write* commands (start/pause/AMS ops), not status push subscription. Bambu's own [Third-party Integration wiki](https://wiki.bambulab.com/en/software/third-party-integration) lists "MQTT status pushes for tools like Home Assistant" as unaffected. So Quote/0 + Handy app can coexist on P2S/P1/X1/A1.
+- **H2 series exception**: per PrintSphere README, H2D/H2DPro do not expose local MQTT in cloud mode — those *do* require LAN-only + Developer Mode, which kills Handy. Single-printer trade-off, doesn't affect P2S.
 
 ## Related
 

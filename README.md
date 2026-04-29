@@ -1,6 +1,8 @@
 # bambu_cc
 
-把 Bambu Lab P2S（及兼容 V2 协议机型）的实时状态推到 Quote/0 电纸屏。本地 LAN MQTT + 可选 RTSPS 摄像头快照，单容器跑。
+把 Bambu Lab 打印机的实时状态推到 Quote/0 电纸屏。本地 LAN MQTT + 可选摄像头快照,单容器跑。
+
+**支持机型**:P2S(基线)、P1P / P1S、A1 / A1 mini、X1 / X1C / X1E、H2D / H2DPro。摄像头自动二选一:RTSPS(P2S / X1 / H2)或 port 6000 JPEG TCP(P1 / A1)。其他差异(V2 活跃 tray、H2D 双喷头、AMS HT、字符串型温度、P1 增量推送深合并)都已处理。
 
 ![preview](preview_camera_x3.png)
 
@@ -18,12 +20,13 @@
 
 ## 准备工作
 
-1. **打印机屏幕里打开开发者模式**（设置 → 通用 → Developer Mode 或 LAN-only Mode）。Bambu 自 2025 年初的「Authorization Control」固件起，必须显式开启才会让第三方读 8883/322 端口
-2. **拿到打印机三件套**：
+1. **拿到打印机三件套**：
    - LAN IP（设置 → 网络）
    - 序列号（设置 → 关于）
    - LAN 访问码（设置 → WLAN，8 位数字）
-3. **Quote/0 两件套**：API key（`dot_app_...`）+ 设备 SN
+2. **Quote/0 两件套**：API key（`dot_app_...`）+ 设备 SN
+
+> **不需要开 LAN-only / Developer Mode**（P2S/P1/X1/A1）。云模式下 8883/322 已对同一 LAN 开放,只读监听不受 Authorization Control 影响,可与官方 Handy app 并存。**例外**:H2D/H2DPro 必须 LAN-only + Developer Mode(等于失去云端 app)。
 
 ## 用法
 
@@ -47,7 +50,8 @@ docker compose logs -f
 | `QUOTE0_API_KEY` | Quote/0 API key | 必填 |
 | `QUOTE0_DEVICE_ID` | Quote/0 设备 SN | 必填 |
 | `INTERVAL_SECONDS` | 推屏间隔 | `60` |
-| `SHOW_CAMERA` | `true` 抓 RTSPS 帧作背景 / `false` 纯数据 | `true` |
+| `SHOW_CAMERA` | `true` 抓帧作背景 / `false` 纯数据 | `true` |
+| `CAMERA_PROTO` | `auto` / `rtsps`(P2S/X1/H2 系列,port 322)/ `jpeg`(P1P/P1S/A1/A1 mini,port 6000 TLS) | `auto` |
 
 ## 离线预览
 
@@ -105,10 +109,12 @@ RTSPS 走 ffmpeg 的 `-tls_verify 0`，同理。
 
 ## 已知限制
 
-- ffmpeg 抓 RTSPS 一帧约 5–10 秒，影响刷新节奏；`INTERVAL_SECONDS` 不要设得比这低
-- 1-bit 屏幕颜色不可视，料盘色块只能传达明暗
-- 一台容器对一台打印机；多机要复制项目目录改容器名
-- HMS 端点偶尔会限速 / 返回 5xx，启动失败不致命，缓存或显示 raw
+- RTSPS 抓一帧约 5–10 秒;P1/A1 的 JPEG 流通常更快(~1–2 秒)。`INTERVAL_SECONDS` 不要设得比抓帧时间还低
+- 1-bit 屏幕颜色不可视,料盘色块只能传达明暗
+- 一台容器对一台打印机;多机要复制项目目录改容器名
+- HMS 端点偶尔会限速 / 返回 5xx,启动失败不致命,缓存或显示 raw
+- H2D 双喷头版面用 `N1 / N2` 两行,会少显示一行 tray;AMS HT 渲染为 `H1 / H2 / ...`
+- H2D / H2DPro 必须 LAN-only + Developer Mode 才有本地 MQTT,与官方 Handy app 互斥。其他机型不受此限
 
 ## 参考
 
