@@ -23,7 +23,6 @@ def grab_rtsps(printer_ip: str, access_code: str, timeout: int = 20) -> Optional
     url = f"rtsps://bblp:{access_code}@{printer_ip}:322/streaming/live/1"
     cmd = [
         "ffmpeg", "-loglevel", "error", "-rtsp_transport", "tcp",
-        "-tls_verify", "0",
         "-y", "-i", url,
         "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-",
     ]
