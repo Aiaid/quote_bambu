@@ -1,0 +1,23 @@
+services:
+  bambu_cc:
+    image: python:3.12-slim
+    container_name: bambu_cc
+    restart: always
+    working_dir: /app
+    volumes:
+      - ./fetch_bambu.py:/app/fetch_bambu.py:ro
+    env_file:
+      - .env
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        apt-get update
+        apt-get install -y --no-install-recommends ffmpeg ca-certificates fonts-dejavu-core
+        rm -rf /var/lib/apt/lists/*
+        pip install --no-cache-dir \
+          -i https://mirrors.aliyun.com/pypi/simple/ \
+          --trusted-host mirrors.aliyun.com \
+          paho-mqtt requests pillow
+        exec python -u fetch_bambu.py
