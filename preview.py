@@ -17,6 +17,7 @@ _AMS_FULL = {
     "ams": [{
         "id": "0",
         "humidity": "4",
+        "humidity_raw": "62",
         "temp": "22.7",
         "tray": [
             {"id": "0", "tray_type": "PLA",   "tray_color": "FFFFFFFF", "remain": 80},

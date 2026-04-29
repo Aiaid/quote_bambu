@@ -5,6 +5,7 @@ RUN apt-get update \
         ffmpeg \
         ca-certificates \
         fonts-dejavu-core \
+        tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

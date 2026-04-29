@@ -269,23 +269,23 @@ def get_trays(d: dict) -> list:
 
 
 def get_ams_unit_info(d: dict):
-    """Return (humidity_level int 0-5, temp_str) from first AMS unit.
-
-    `humidity` is a 1-5 level (1=driest, 5=wettest) — Bambu Studio convention.
-    `humidity_raw` (AMS-HT / new firmware) is true %, mapped to 5 buckets.
-    """
+    """Return (humidity_level 0-5, humidity_pct or None, temp_str) from
+    first AMS unit. `humidity` is a 1-5 level (driest..wettest).
+    `humidity_raw` is true %, also mapped to 5 buckets when present."""
     units = (d.get("ams") or {}).get("ams")
     if not units:
-        return 0, ""
+        return 0, None, ""
     u = units[0]
     h_lvl_raw = str(u.get("humidity", "")).strip()
     h_raw = u.get("humidity_raw")
     t_str = str(u.get("temp", "")).strip()
     level = 0
+    pct: Optional[int] = None
     if h_raw not in (None, "", "0"):
         try:
-            pct = float(h_raw)
-            level = min(5, max(1, int(pct // 20) + 1))
+            f = float(h_raw)
+            pct = int(round(f))
+            level = min(5, max(1, int(f // 20) + 1))
         except (TypeError, ValueError):
             pass
     if not level and h_lvl_raw:
@@ -293,7 +293,7 @@ def get_ams_unit_info(d: dict):
             level = max(0, min(5, int(h_lvl_raw)))
         except ValueError:
             pass
-    return level, t_str
+    return level, pct, t_str
 
 
 def draw_drops(draw: ImageDraw.ImageDraw, x: int, y: int, level: int, total: int = 5,
@@ -512,15 +512,18 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
         draw.text((rx, ry), f"N{nozzle:.0f}° B{bed:.0f}°{chamber_str}", font=fs, fill="black")
         ry += 11
 
-    h_level, t_str = get_ams_unit_info(d)
-    if h_level or t_str:
-        draw.text((rx, ry), "AMS", font=fs, fill="black")
-        x_after = rx + 24
+    h_level, h_pct, t_str = get_ams_unit_info(d)
+    # Row 1: AMS internal temp (with label).
+    if t_str:
+        draw.text((rx, ry), f"AMS  {_to_float(t_str):.0f}°", font=fs, fill="black")
+        ry += 11
+    # Row 2: humidity drops + %, indented under the AMS label above.
+    if h_level or h_pct is not None:
+        x_after = rx
         if h_level:
             x_after = draw_drops(draw, x_after, ry + 3, h_level) + 4
-        if t_str:
-            t_text = f"{_to_float(t_str):.0f}°" if t_str else ""
-            draw.text((x_after, ry), t_text, font=fs, fill="black")
+        if h_pct is not None:
+            draw.text((x_after, ry), f"{h_pct}%", font=fs, fill="black")
         ry += 11
 
     draw.line([(rx, ry), (W - 4, ry)], fill="black"); ry += 3

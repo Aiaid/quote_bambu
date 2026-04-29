@@ -54,6 +54,7 @@ docker compose logs -f
 | `SHOW_CAMERA` | `true` 抓帧作背景 / `false` 纯数据 | `true` |
 | `CAMERA_PROTO` | `auto` / `rtsps`(P2S/X1/H2 系列,port 322)/ `jpeg`(P1P/P1S/A1/A1 mini,port 6000 TLS) | `auto` |
 | `HMS_IGNORE` | 逗号分隔的 16 位 hex ecode 列表,命中的不切 HMS 全屏(用于 mute 持久性 warning) | 空 |
+| `TZ` | 容器时区(IANA 名),影响顶栏时钟和 HMS 时间。slim 镜像默认 UTC | `Asia/Shanghai` (建议) |
 
 ## 离线预览
 
