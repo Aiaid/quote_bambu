@@ -648,6 +648,8 @@ def push_image(image_b64: str):
         headers={"Authorization": f"Bearer {QUOTE0_API_KEY}", "Content-Type": "application/json"},
         timeout=30,
     )
+    if not r.ok:
+        log.error("Quote/0 HTTP %s: %s", r.status_code, r.text[:300])
     r.raise_for_status()
     log.info("Quote/0: %s", r.json())
 
@@ -658,6 +660,16 @@ if __name__ == "__main__":
              INTERVAL_SECONDS, SHOW_CAMERA)
     load_hms_db()
     client = start_mqtt()
+    # Wait briefly for MQTT to connect and the first pushall to arrive,
+    # otherwise the first render races ahead and pushes "MQTT connecting..."
+    # to Quote/0 — and with INTERVAL_SECONDS=300 the user stares at it 5min.
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        with state["lock"]:
+            ready = state["data"] is not None
+        if ready:
+            break
+        time.sleep(0.5)
     while True:
         try:
             with state["lock"]:
