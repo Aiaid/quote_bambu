@@ -204,6 +204,20 @@ def _tray_grid_label(ams_id: int, slot: int) -> str:
     return f"T{ams_id * 4 + slot + 1}"
 
 
+def _chamber_temp(d: dict) -> Optional[float]:
+    """X1C / X1E / H2D report `chamber_temper` at the top level. P2S keeps
+    the same sensor under `device.ctc.info.temp` (integer °C). Probe both."""
+    v = d.get("chamber_temper")
+    if v is None:
+        v = (((d.get("device") or {}).get("ctc") or {}).get("info") or {}).get("temp")
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _right_nozzle_temp(d: dict) -> Optional[float]:
     """H2D dual-extruder right nozzle temperature; field name varies by
     firmware. Returns None on single-nozzle machines."""
@@ -473,8 +487,7 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
     nozzle = _to_float(d.get("nozzle_temper"))
     nozzle2 = _right_nozzle_temp(d)
     bed = _to_float(d.get("bed_temper"))
-    chamber = d.get("chamber_temper")
-    chamber_f = _to_float(chamber) if chamber is not None else None
+    chamber_f = _chamber_temp(d)
     layer = d.get("layer_num")
     total_layer = d.get("total_layer_num")
     name = d.get("subtask_name") or d.get("gcode_file") or ""
@@ -578,8 +591,7 @@ def _render_data_only(img, draw, ft, fm, fs, d):
     nozzle = _to_float(d.get("nozzle_temper"))
     nozzle2 = _right_nozzle_temp(d)
     bed = _to_float(d.get("bed_temper"))
-    chamber = d.get("chamber_temper")
-    chamber_f = _to_float(chamber) if chamber is not None else None
+    chamber_f = _chamber_temp(d)
     layer = d.get("layer_num")
     total_layer = d.get("total_layer_num")
     name = d.get("subtask_name") or d.get("gcode_file") or ""
