@@ -31,14 +31,15 @@
 ## 用法
 
 ```bash
-cd /Users/anend/Desktop/project/bambu_cc
+git clone https://github.com/Aiaid/quote_bambu.git
+cd quote_bambu
 cp .env.example .env
 # 编辑 .env 填上 5 个值
 docker compose up -d
 docker compose logs -f
 ```
 
-首次启动 1–2 分钟（容器要装 ffmpeg + dejavu 字体 + pip 装 paho-mqtt/requests/pillow），之后 `restart: always` 重启不会重装。
+默认从 `ghcr.io/aiaid/quote_bambu:latest` 拉预构建多架构镜像(amd64 / arm64,CI 自动 build)。本地改代码调试用 `docker compose --profile dev up bambu_cc_dev`,会 bind-mount 源码 + inline 装依赖。
 
 ## 环境变量（.env）
 

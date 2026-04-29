@@ -1,8 +1,19 @@
 services:
   bambu_cc:
-    image: python:3.12-slim
+    image: ghcr.io/aiaid/quote_bambu:latest
     container_name: bambu_cc
     restart: always
+    pull_policy: always
+    env_file:
+      - .env
+
+  # --- Local dev: bind-mount sources, install deps inline. ---
+  # Use with:  docker compose --profile dev up bambu_cc_dev
+  bambu_cc_dev:
+    profiles: [dev]
+    image: python:3.12-slim
+    container_name: bambu_cc_dev
+    restart: "no"
     working_dir: /app
     volumes:
       - ./fetch_bambu.py:/app/fetch_bambu.py:ro
