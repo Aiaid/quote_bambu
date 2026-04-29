@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Fetch Bambu Lab P2S local status (LAN MQTT) and push to Quote/0 as image."""
-import os, json, time, ssl, logging, base64, io, subprocess, threading
+import os, json, time, ssl, logging, base64, io, threading
 from datetime import datetime
 from typing import Optional, List
 from PIL import Image, ImageDraw, ImageFont
 import paho.mqtt.client as mqtt
 import requests
+
+import camera as _camera
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 log = logging.getLogger(__name__)
@@ -33,6 +35,7 @@ QUOTE0_API_KEY    = os.environ.get("QUOTE0_API_KEY", "").strip()
 QUOTE0_DEVICE_ID  = os.environ.get("QUOTE0_DEVICE_ID", "").strip()
 INTERVAL_SECONDS  = _envint("INTERVAL_SECONDS", 60)
 SHOW_CAMERA       = _envbool("SHOW_CAMERA", True)
+CAMERA_PROTO      = os.environ.get("CAMERA_PROTO", "auto").strip().lower()
 
 _missing = [k for k, v in {
     "PRINTER_IP": PRINTER_IP, "PRINTER_SN": PRINTER_SN, "PRINTER_ACCESS": PRINTER_ACCESS,
@@ -48,8 +51,25 @@ QUOTE0_BASE = "https://dot.mindreset.tech/api/authV2/open/device"
 state = {"data": None, "lock": threading.Lock(), "connected": False}
 
 
-def rtsp_url() -> str:
-    return f"rtsps://bblp:{PRINTER_ACCESS}@{PRINTER_IP}:322/streaming/live/1"
+def _to_float(v, default: float = 0.0) -> float:
+    """Tolerant float coercion. Some firmware sends temps as strings."""
+    if v is None or v == "":
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _deep_merge(dst: dict, src: dict) -> None:
+    """Recursive dict merge. Required for P1 series — printer sends partial
+    incremental updates after pushall, and a shallow update would wipe
+    nested objects like `ams` when only one of its keys changes."""
+    for k, v in src.items():
+        if isinstance(v, dict) and isinstance(dst.get(k), dict):
+            _deep_merge(dst[k], v)
+        else:
+            dst[k] = v
 
 
 def on_connect(client, userdata, flags, rc, properties=None):
@@ -78,7 +98,7 @@ def on_message(client, userdata, msg):
     with state["lock"]:
         if state["data"] is None:
             state["data"] = {}
-        state["data"].update(print_obj)
+        _deep_merge(state["data"], print_obj)
 
 
 def start_mqtt() -> mqtt.Client:
@@ -96,26 +116,7 @@ def start_mqtt() -> mqtt.Client:
 
 
 def grab_camera_frame() -> Optional[Image.Image]:
-    """Pull one PNG frame from RTSPS via ffmpeg."""
-    cmd = [
-        "ffmpeg", "-loglevel", "error", "-rtsp_transport", "tcp",
-        "-tls_verify", "0",
-        "-y", "-i", rtsp_url(),
-        "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-",
-    ]
-    try:
-        out = subprocess.run(cmd, capture_output=True, timeout=20)
-    except subprocess.TimeoutExpired:
-        log.warning("ffmpeg timeout")
-        return None
-    if out.returncode != 0 or not out.stdout:
-        log.warning("ffmpeg failed: %s", out.stderr.decode(errors="ignore")[:200])
-        return None
-    try:
-        return Image.open(io.BytesIO(out.stdout))
-    except Exception:
-        log.exception("decode camera frame")
-        return None
+    return _camera.grab_camera_frame(PRINTER_IP, PRINTER_ACCESS, CAMERA_PROTO)
 
 
 def fmt_eta(minutes) -> str:
@@ -167,28 +168,74 @@ def cover_resize(img: Image.Image, tw: int, th: int) -> Image.Image:
 SPEED_LABEL = {1: "Silent", 2: "Std", 3: "Sport", 4: "Ludi"}
 
 
-def tray_label(d: dict) -> str:
-    ams = d.get("ams") or {}
-    raw = ams.get("tray_now")
-    if raw is None:
-        return ""
+def _active_tray_idx(d: dict) -> int:
+    """Active tray global index (ams_id*4 + slot). Prefers V2 protocol's
+    `device.extruder.info[].snow` (bits 15:8 = ams_id, 7:0 = slot) used by
+    P2S/H2 series; falls back to legacy `ams.tray_now`. Returns 254 for
+    external spool, -1 for unknown."""
+    info = ((d.get("device") or {}).get("extruder") or {}).get("info")
+    if isinstance(info, list):
+        for ext in info:
+            if not isinstance(ext, dict):
+                continue
+            snow = ext.get("snow")
+            if isinstance(snow, int) and 0 <= snow < 0xFFFF:
+                ams_id = (snow >> 8) & 0xFF
+                slot = snow & 0xFF
+                if slot == 0xFE or ams_id == 0xFE:
+                    return 254
+                if ams_id == 0xFF or slot == 0xFF:
+                    continue
+                return ams_id * 4 + slot
+    raw = (d.get("ams") or {}).get("tray_now")
     try:
-        n = int(raw)
+        return int(raw) if raw is not None else -1
     except (TypeError, ValueError):
-        return ""
-    if n in (254, 255):
+        return -1
+
+
+def _tray_grid_label(ams_id: int, slot: int) -> str:
+    """AMS HT (single-tray unit) reports ams_id >= 128. Render as H{n}
+    instead of overflowing the T{n} grid."""
+    if ams_id >= 128:
+        return f"H{ams_id - 127}"
+    return f"T{ams_id * 4 + slot + 1}"
+
+
+def _right_nozzle_temp(d: dict) -> Optional[float]:
+    """H2D dual-extruder right nozzle temperature; field name varies by
+    firmware. Returns None on single-nozzle machines."""
+    for key in ("right_nozzle_temper", "secondary_nozzle_temper",
+                "second_nozzle_temper", "tool1_nozzle_temper"):
+        v = d.get(key)
+        if v is not None:
+            f = _to_float(v, -1)
+            if f >= 0:
+                return f
+    info = ((d.get("device") or {}).get("extruder") or {}).get("info")
+    if isinstance(info, list) and len(info) >= 2 and isinstance(info[1], dict):
+        v = info[1].get("temp")
+        if v is not None:
+            f = _to_float(v, -1)
+            if f >= 0:
+                return f
+    return None
+
+
+def tray_label(d: dict) -> str:
+    n = _active_tray_idx(d)
+    if n == 254:
         return "Ext"
-    return f"T{n + 1}"
+    if n < 0:
+        return ""
+    ams_id, slot = divmod(n, 4)
+    return _tray_grid_label(ams_id, slot)
 
 
 def get_trays(d: dict) -> list:
     """Flatten AMS units into per-tray dicts."""
     ams = d.get("ams") or {}
-    raw_now = ams.get("tray_now")
-    try:
-        active_idx = int(raw_now) if raw_now is not None else -1
-    except (TypeError, ValueError):
-        active_idx = -1
+    active_idx = _active_tray_idx(d)
     out = []
     for unit in ams.get("ams") or []:
         try:
@@ -209,6 +256,7 @@ def get_trays(d: dict) -> list:
                 remain = -1
             out.append({
                 "idx": gidx,
+                "label": _tray_grid_label(ams_id, tid),
                 "type": ttype or "-",
                 "color": color,
                 "remain": remain,
@@ -407,9 +455,11 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
     stage = (d.get("gcode_state") or "?")
     pct = d.get("mc_percent") or 0
     eta = d.get("mc_remaining_time")
-    nozzle = d.get("nozzle_temper") or 0
-    bed = d.get("bed_temper") or 0
+    nozzle = _to_float(d.get("nozzle_temper"))
+    nozzle2 = _right_nozzle_temp(d)
+    bed = _to_float(d.get("bed_temper"))
     chamber = d.get("chamber_temper")
+    chamber_f = _to_float(chamber) if chamber is not None else None
     layer = d.get("layer_num")
     total_layer = d.get("total_layer_num")
     name = d.get("subtask_name") or d.get("gcode_file") or ""
@@ -436,9 +486,16 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
     rx = RIGHT_X
     ry = HEADER_H + 1
 
-    chamber_str = f" C{float(chamber):.0f}°" if chamber is not None else ""
-    draw.text((rx, ry), f"N{nozzle:.0f}° B{bed:.0f}°{chamber_str}", font=fs, fill="black")
-    ry += 11
+    if nozzle2 is not None:
+        draw.text((rx, ry), f"N1 {nozzle:.0f}°  N2 {nozzle2:.0f}°", font=fs, fill="black")
+        ry += 11
+        chamber_str = f"  C{chamber_f:.0f}°" if chamber_f is not None else ""
+        draw.text((rx, ry), f"B{bed:.0f}°{chamber_str}", font=fs, fill="black")
+        ry += 11
+    else:
+        chamber_str = f" C{chamber_f:.0f}°" if chamber_f is not None else ""
+        draw.text((rx, ry), f"N{nozzle:.0f}° B{bed:.0f}°{chamber_str}", font=fs, fill="black")
+        ry += 11
 
     h_level, t_str = get_ams_unit_info(d)
     if h_level or t_str:
@@ -447,10 +504,7 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
         if h_level:
             x_after = draw_drops(draw, x_after, ry + 3, h_level) + 4
         if t_str:
-            try:
-                t_text = f"{float(t_str):.0f}°"
-            except ValueError:
-                t_text = t_str
+            t_text = f"{_to_float(t_str):.0f}°" if t_str else ""
             draw.text((x_after, ry), t_text, font=fs, fill="black")
         ry += 11
 
@@ -463,7 +517,7 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
             draw.rectangle([rx - 1, ry, rx + 7, ry + 8], outline="black")
             mark = "*" if tr["active"] else " "
             ttype = tr["type"] if not tr["empty"] else "—"
-            label = f"T{tr['idx']+1}{mark} {ttype[:5]}"
+            label = f"{tr['label']}{mark} {ttype[:5]}"
             if tr["remain"] >= 0 and not tr["empty"]:
                 label += f" {tr['remain']}%"
             draw.text((rx + 10, ry), label, font=fs, fill="black")
@@ -498,9 +552,11 @@ def _render_data_only(img, draw, ft, fm, fs, d):
     stage = (d.get("gcode_state") or "?")
     pct = d.get("mc_percent") or 0
     eta = d.get("mc_remaining_time")
-    nozzle = d.get("nozzle_temper") or 0
-    bed = d.get("bed_temper") or 0
+    nozzle = _to_float(d.get("nozzle_temper"))
+    nozzle2 = _right_nozzle_temp(d)
+    bed = _to_float(d.get("bed_temper"))
     chamber = d.get("chamber_temper")
+    chamber_f = _to_float(chamber) if chamber is not None else None
     layer = d.get("layer_num")
     total_layer = d.get("total_layer_num")
     name = d.get("subtask_name") or d.get("gcode_file") or ""
@@ -521,10 +577,15 @@ def _render_data_only(img, draw, ft, fm, fs, d):
     y += 14
     draw_bar(draw, 6, y, 284, 8, pct)
     y += 14
-    draw.text((6, y), f"N {nozzle:.0f}°", font=fm, fill="black")
-    draw.text((78, y), f"B {bed:.0f}°", font=fm, fill="black")
-    if chamber is not None:
-        draw.text((148, y), f"C {float(chamber):.0f}°", font=fm, fill="black")
+    if nozzle2 is not None:
+        draw.text((6, y), f"N1 {nozzle:.0f}°", font=fm, fill="black")
+        draw.text((78, y), f"N2 {nozzle2:.0f}°", font=fm, fill="black")
+        draw.text((148, y), f"B {bed:.0f}°", font=fm, fill="black")
+    else:
+        draw.text((6, y), f"N {nozzle:.0f}°", font=fm, fill="black")
+        draw.text((78, y), f"B {bed:.0f}°", font=fm, fill="black")
+        if chamber_f is not None:
+            draw.text((148, y), f"C {chamber_f:.0f}°", font=fm, fill="black")
     extras = []
     if tray:
         extras.append(tray)
@@ -539,7 +600,7 @@ def _render_data_only(img, draw, ft, fm, fs, d):
     if trays:
         x = 6
         for tr in trays[:4]:
-            label = f"T{tr['idx']+1}{'*' if tr['active'] else ''}"
+            label = f"{tr['label']}{'*' if tr['active'] else ''}"
             ttype = tr["type"] if not tr["empty"] else "—"
             draw.text((x, y), f"{label} {ttype[:5]}", font=fs, fill="black")
             x += 72

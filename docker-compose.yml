@@ -6,6 +6,7 @@ services:
     working_dir: /app
     volumes:
       - ./fetch_bambu.py:/app/fetch_bambu.py:ro
+      - ./camera.py:/app/camera.py:ro
     env_file:
       - .env
     command:
