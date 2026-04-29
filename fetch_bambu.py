@@ -36,6 +36,8 @@ QUOTE0_DEVICE_ID  = os.environ.get("QUOTE0_DEVICE_ID", "").strip()
 INTERVAL_SECONDS  = _envint("INTERVAL_SECONDS", 60)
 SHOW_CAMERA       = _envbool("SHOW_CAMERA", True)
 CAMERA_PROTO      = os.environ.get("CAMERA_PROTO", "auto").strip().lower()
+HMS_IGNORE        = {c.strip().upper() for c in os.environ.get("HMS_IGNORE", "").split(",") if c.strip()}
+_last_suppressed: set = set()
 
 _missing = [k for k, v in {
     "PRINTER_IP": PRINTER_IP, "PRINTER_SN": PRINTER_SN, "PRINTER_ACCESS": PRINTER_ACCESS,
@@ -412,8 +414,21 @@ def render_image(d: dict) -> str:
     draw = ImageDraw.Draw(img)
     ft, fm, fs = load_fonts()
 
-    if d.get("hms"):
-        return _render_hms(img, draw, ft, fm, fs, d)
+    global _last_suppressed
+    all_hms = d.get("hms") or []
+    visible_hms = [h for h in all_hms
+                   if f"{h.get('attr',0):08X}{h.get('code',0):08X}" not in HMS_IGNORE]
+    suppressed = {f"{h.get('attr',0):08X}{h.get('code',0):08X}" for h in all_hms
+                  if f"{h.get('attr',0):08X}{h.get('code',0):08X}" in HMS_IGNORE}
+    if suppressed != _last_suppressed:
+        if suppressed:
+            log.info("HMS suppressed by HMS_IGNORE: %s", ",".join(sorted(suppressed)))
+        elif _last_suppressed:
+            log.info("HMS_IGNORE entries cleared on printer side: %s",
+                     ",".join(sorted(_last_suppressed)))
+        _last_suppressed = suppressed
+    if visible_hms:
+        return _render_hms(img, draw, ft, fm, fs, {**d, "hms": visible_hms})
 
     cam = None
     if SHOW_CAMERA:
