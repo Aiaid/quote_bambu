@@ -140,16 +140,20 @@ def draw_bar(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, pct: flo
 
 
 def load_fonts():
-    base = "/usr/share/fonts/truetype/dejavu"
-    try:
-        return (
-            ImageFont.truetype(f"{base}/DejaVuSans-Bold.ttf", 13),  # ft  header / emphasis
-            ImageFont.truetype(f"{base}/DejaVuSans.ttf", 11),        # fm  body
-            ImageFont.truetype(f"{base}/DejaVuSans.ttf", 10),        # fs  small
-        )
-    except OSError:
-        d = ImageFont.load_default()
-        return d, d, d
+    # Debian apt: fonts-dejavu-core → /usr/share/fonts/truetype/dejavu/
+    # Alpine apk: font-dejavu       → /usr/share/fonts/dejavu/
+    for base in ("/usr/share/fonts/truetype/dejavu",
+                 "/usr/share/fonts/dejavu"):
+        try:
+            return (
+                ImageFont.truetype(f"{base}/DejaVuSans-Bold.ttf", 13),  # ft
+                ImageFont.truetype(f"{base}/DejaVuSans.ttf", 11),        # fm
+                ImageFont.truetype(f"{base}/DejaVuSans.ttf", 10),        # fs
+            )
+        except OSError:
+            continue
+    d = ImageFont.load_default()
+    return d, d, d
 
 
 def cover_resize(img: Image.Image, tw: int, th: int) -> Image.Image:

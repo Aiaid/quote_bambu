@@ -1,12 +1,13 @@
-FROM python:3.12-slim
+FROM mwader/static-ffmpeg:7.1 AS ffmpeg
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-        ffmpeg \
+FROM python:3.12-alpine
+
+COPY --from=ffmpeg /ffmpeg /usr/local/bin/ffmpeg
+
+RUN apk add --no-cache \
         ca-certificates \
-        fonts-dejavu-core \
         tzdata \
- && rm -rf /var/lib/apt/lists/*
+        font-dejavu
 
 WORKDIR /app
 
