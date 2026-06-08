@@ -4,7 +4,9 @@
 
 **支持机型**:P2S(基线)、P1P / P1S、A1 / A1 mini、X1 / X1C / X1E、H2D / H2DPro。摄像头自动二选一:RTSPS(P2S / X1 / H2)或 port 6000 JPEG TCP(P1 / A1)。其他差异(V2 活跃 tray、H2D 双喷头、AMS HT、字符串型温度、P1 增量推送深合并)都已处理。
 
-![preview](preview_camera_x3.png)
+![preview](canvas_camera_x3.png)
+
+<sub>Canvas 模式（默认）的摄像头版面。Image 模式见下方对比。</sub>
 
 ## 功能
 
@@ -17,6 +19,23 @@
   - 底条：文件名 + 全宽进度条 + %
 - HMS 报错时全屏切换到 ALERT 版面，启动时拉 Bambu 官方在线 HMS 表显示英文描述
 - ffmpeg 抓帧失败自动降级到纯数据版面
+
+## 两种推送模式（PUSH_MODE）
+
+Quote/0 开放接口有两条通道，本项目都支持，用 `PUSH_MODE` 切换：
+
+| 模式 | 通道 | 怎么画 | 取舍 |
+|---|---|---|---|
+| `canvas`（默认） | Canvas API `/device/<id>/canvas` | 用 `div`/`span` + CSS 矢量排版（文字、温度、料盘、进度条），仅摄像头帧和料盘色块用 `<img>` 承载 PNG | 文字用设备像素字体（`text-pixel-12-zpix` / HMS 用 `text-pixel-16`），更清晰 |
+| `image` | Image API `/device/<id>/image` | 用 PIL 把整屏画成一张 1-bit PNG 推上去 | 像素级精确，进度条/雨滴/抖动色块完全可控 |
+
+两种模式渲染的是同一批数据，但**观感不同**：image 用 PIL 的 DejaVu 字体本地画死，canvas 由设备固件用像素字体排版。Canvas 版（`quote0_canvas.py`）已 1:1 复刻 camera / data-only / HMS 三套版面，并处理了温度列对齐、料种截断、百分比右对齐贴边等细节。
+
+> Canvas 内容块同样需要在 Dot. App 的 Content Studio 里加入设备的 Loop 轮播任务后才会显示（和 Image 块各自独立）。
+
+Image 模式版面（对比顶部的 Canvas 版）：
+
+![image preview](preview_camera_x3.png)
 
 ## 准备工作
 
@@ -52,6 +71,7 @@ docker compose logs -f
 | `QUOTE0_DEVICE_ID` | Quote/0 设备 SN | 必填 |
 | `INTERVAL_SECONDS` | 推屏间隔 | `60` |
 | `SHOW_CAMERA` | `true` 抓帧作背景 / `false` 纯数据 | `true` |
+| `PUSH_MODE` | `canvas` 走 Canvas API 用 div/span/CSS 矢量排版(详见下) / `image` 走 Image API 推整张 PNG | `canvas` |
 | `CAMERA_PROTO` | `auto` / `rtsps`(P2S/X1/H2 系列,port 322)/ `jpeg`(P1P/P1S/A1/A1 mini,port 6000 TLS) | `auto` |
 | `HMS_IGNORE` | 逗号分隔的 16 位 hex ecode 列表,命中的不切 HMS 全屏(用于 mute 持久性 warning) | 空 |
 | `TZ` | 容器时区(IANA 名),影响顶栏时钟和 HMS 时间。slim 镜像默认 UTC | `Asia/Shanghai` (建议) |
@@ -72,6 +92,8 @@ python3 preview.py
 - `preview_hms.png` — HMS 报错版面（含真实英文描述）
 
 改 `fetch_bambu.py` 里 `_render_*` 函数的坐标 → 重跑 `preview.py` 即可所见即所得，不用动容器或打印机。
+
+Canvas 版面同理，跑 `python3 preview_canvas.py`，输出 `canvas_camera.png` / `canvas_dataonly.png` / `canvas_hms.png`（各带 `_x3`）。注意 Canvas 预览是**近似渲染**——本地用 Arial 模拟，真机用像素字体，字宽和截断略有差异，定位看个大概，像素级以真机为准。
 
 ## 屏幕版面要素
 

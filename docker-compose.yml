@@ -18,6 +18,7 @@ services:
     volumes:
       - ./fetch_bambu.py:/app/fetch_bambu.py:ro
       - ./camera.py:/app/camera.py:ro
+      - ./quote0_canvas.py:/app/quote0_canvas.py:ro
     env_file:
       - .env
     command:

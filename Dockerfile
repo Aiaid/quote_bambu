@@ -13,7 +13,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir paho-mqtt requests pillow
 
-COPY fetch_bambu.py camera.py ./
+COPY fetch_bambu.py camera.py quote0_canvas.py ./
 
 ENV PYTHONUNBUFFERED=1
 

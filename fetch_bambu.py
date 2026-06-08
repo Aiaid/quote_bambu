@@ -8,6 +8,7 @@ import paho.mqtt.client as mqtt
 import requests
 
 import camera as _camera
+import quote0_canvas as _canvas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", stream=sys.stdout)
 log = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ QUOTE0_DEVICE_ID  = os.environ.get("QUOTE0_DEVICE_ID", "").strip()
 INTERVAL_SECONDS  = _envint("INTERVAL_SECONDS", 60)
 SHOW_CAMERA       = _envbool("SHOW_CAMERA", True)
 CAMERA_PROTO      = os.environ.get("CAMERA_PROTO", "auto").strip().lower()
+PUSH_MODE         = os.environ.get("PUSH_MODE", "canvas").strip().lower()  # image | canvas
 HMS_IGNORE        = {c.strip().upper() for c in os.environ.get("HMS_IGNORE", "").split(",") if c.strip()}
 _last_suppressed: set = set()
 
@@ -427,11 +429,9 @@ def hms_lines(hms_list) -> List[str]:
     return out
 
 
-def render_image(d: dict) -> str:
-    img = Image.new("1", (W, H), 1)
-    draw = ImageDraw.Draw(img)
-    ft, fm, fs = load_fonts()
-
+def _visible_hms(d: dict) -> list:
+    """Apply HMS_IGNORE filtering and log suppression changes once. Shared by
+    the image and canvas render paths."""
     global _last_suppressed
     all_hms = d.get("hms") or []
     visible_hms = [h for h in all_hms
@@ -445,6 +445,15 @@ def render_image(d: dict) -> str:
             log.info("HMS_IGNORE entries cleared on printer side: %s",
                      ",".join(sorted(_last_suppressed)))
         _last_suppressed = suppressed
+    return visible_hms
+
+
+def render_image(d: dict) -> str:
+    img = Image.new("1", (W, H), 1)
+    draw = ImageDraw.Draw(img)
+    ft, fm, fs = load_fonts()
+
+    visible_hms = _visible_hms(d)
     if visible_hms:
         return _render_hms(img, draw, ft, fm, fs, {**d, "hms": visible_hms})
 
@@ -454,6 +463,17 @@ def render_image(d: dict) -> str:
     if cam is not None:
         return _render_with_camera(img, draw, ft, fm, fs, d, cam)
     return _render_data_only(img, draw, ft, fm, fs, d)
+
+
+def render_canvas_window(d: dict) -> dict:
+    """Build a Canvas element tree for `d`: vector div/span/CSS layout, with
+    the camera frame as the only <img>. HMS alert and data-only paths reuse
+    the camera builder (camera frame just omitted)."""
+    visible_hms = _visible_hms(d)
+    if visible_hms:
+        return _canvas.build_window_hms({**d, "hms": visible_hms}, sys.modules[__name__])
+    cam = grab_camera_frame() if SHOW_CAMERA else None
+    return _canvas.build_window_camera(d, cam, sys.modules[__name__])
 
 
 def _render_hms(img, draw, ft, fm, fs, d):
@@ -666,6 +686,13 @@ def render_status_image(title: str, lines: List[str]) -> str:
 
 
 def push_image(image_b64: str):
+    """Push a rendered PNG to Quote/0. PUSH_MODE picks the transport:
+    `image` (default) → Image API; `canvas` → Canvas API as a full-screen
+    <img>. Both send the identical PIL-rendered PNG; canvas is a fallback
+    channel since it's a separate content block in the device loop task."""
+    if PUSH_MODE == "canvas":
+        _canvas.push_canvas_image(image_b64, QUOTE0_DEVICE_ID, QUOTE0_API_KEY)
+        return
     r = requests.post(
         f"{QUOTE0_BASE}/{QUOTE0_DEVICE_ID}/image",
         json={"refreshNow": True, "image": image_b64, "border": 0, "ditherType": "NONE"},
@@ -679,9 +706,9 @@ def push_image(image_b64: str):
 
 
 if __name__ == "__main__":
-    log.info("Starting bambu loop ip=%s sn=%s interval=%ds camera=%s",
+    log.info("Starting bambu loop ip=%s sn=%s interval=%ds camera=%s push=%s",
              PRINTER_IP, PRINTER_SN[:6] + "..." if PRINTER_SN else "<unset>",
-             INTERVAL_SECONDS, SHOW_CAMERA)
+             INTERVAL_SECONDS, SHOW_CAMERA, PUSH_MODE)
     load_hms_db()
     client = start_mqtt()
     # Wait briefly for MQTT to connect and the first pushall to arrive,
@@ -700,7 +727,14 @@ if __name__ == "__main__":
                 d = dict(state["data"]) if state["data"] else None
             if d is None:
                 msg = "MQTT connecting..." if not state["connected"] else "Waiting first push..."
-                push_image(render_status_image("P2S Offline", [msg, f"Host {PRINTER_IP or '?'}"]))
+                if PUSH_MODE == "canvas":
+                    _canvas.push_window(
+                        _canvas.build_window_status("P2S Offline", [msg, f"Host {PRINTER_IP or '?'}"]),
+                        QUOTE0_DEVICE_ID, QUOTE0_API_KEY)
+                else:
+                    push_image(render_status_image("P2S Offline", [msg, f"Host {PRINTER_IP or '?'}"]))
+            elif PUSH_MODE == "canvas":
+                _canvas.push_window(render_canvas_window(d), QUOTE0_DEVICE_ID, QUOTE0_API_KEY)
             else:
                 push_image(render_image(d))
         except Exception:

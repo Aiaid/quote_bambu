@@ -1,5 +1,9 @@
 .env
 *.png
+# …but keep the few preview images the README embeds
+!preview_camera_x3.png
+!canvas_camera_x3.png
+!canvas_hms_x3.png
 *.tar
 *.tar.gz
 __pycache__/
