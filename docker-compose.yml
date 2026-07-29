@@ -19,6 +19,8 @@ services:
       - ./fetch_bambu.py:/app/fetch_bambu.py:ro
       - ./camera.py:/app/camera.py:ro
       - ./quote0_canvas.py:/app/quote0_canvas.py:ro
+      - ./requirements.txt:/app/requirements.txt:ro
+      - ./requirements.lock:/app/requirements.lock:ro
     env_file:
       - .env
     command:
@@ -32,5 +34,5 @@ services:
         pip install --no-cache-dir \
           -i https://mirrors.aliyun.com/pypi/simple/ \
           --trusted-host mirrors.aliyun.com \
-          paho-mqtt requests pillow
+          -r requirements.lock
         exec python -u fetch_bambu.py

@@ -1,0 +1,63 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove access codes, API keys, serial numbers, IP addresses, private job
+        names, and camera frames before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Quote Bambu version
+      description: Release tag, image tag, or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: printer
+    attributes:
+      label: Printer and firmware
+      placeholder: X1C, firmware 01.xx.xx.xx
+    validations:
+      required: true
+  - type: dropdown
+    id: push_mode
+    attributes:
+      label: Push mode
+      options:
+        - canvas
+        - image
+    validations:
+      required: true
+  - type: dropdown
+    id: camera_proto
+    attributes:
+      label: Camera protocol
+      options:
+        - auto
+        - rtsps
+        - jpeg
+        - camera disabled
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include expected behavior and exact reproduction steps.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      render: text
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Sensitive-data check
+      options:
+        - label: I removed credentials, serial numbers, IPs, private job names, and camera images.
+          required: true

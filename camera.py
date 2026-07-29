@@ -8,6 +8,7 @@ Spec: OpenBambuAPI/video.md
 import io
 import logging
 import os
+import re
 import socket
 import ssl
 import struct
@@ -19,10 +20,19 @@ from PIL import Image
 log = logging.getLogger(__name__)
 
 
+def _redact_camera_error(message: str, access_code: str) -> str:
+    """Remove camera credentials from ffmpeg diagnostics before logging."""
+    redacted = re.sub(r"rtsps://[^\s/@:]+:[^\s/@]*@", "rtsps://***:***@", message)
+    if access_code:
+        redacted = redacted.replace(access_code, "***")
+    return redacted
+
+
 def grab_rtsps(printer_ip: str, access_code: str, timeout: int = 20) -> Optional[Image.Image]:
     url = f"rtsps://bblp:{access_code}@{printer_ip}:322/streaming/live/1"
     cmd = [
-        "ffmpeg", "-loglevel", "error", "-rtsp_transport", "tcp",
+        "ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+        "-rtsp_transport", "tcp",
         "-y", "-i", url,
         "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-",
     ]
@@ -35,7 +45,8 @@ def grab_rtsps(printer_ip: str, access_code: str, timeout: int = 20) -> Optional
         log.warning("ffmpeg not installed")
         return None
     if out.returncode != 0 or not out.stdout:
-        log.warning("ffmpeg failed: %s", out.stderr.decode(errors="ignore")[:200])
+        error = out.stderr.decode(errors="ignore")
+        log.warning("ffmpeg failed: %s", _redact_camera_error(error, access_code)[:200])
         return None
     try:
         return Image.open(io.BytesIO(out.stdout))

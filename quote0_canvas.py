@@ -25,7 +25,7 @@ import base64
 import io
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import requests
 
@@ -148,7 +148,7 @@ def _bar(left, top, width, height, pct) -> dict:
                             "boxSizing": "border-box"}), children=inner)
 
 
-def _drops(left, top, level, total=5, dot=6, gap=2) -> list:
+def _drops(left, top, level, total=5, dot=6, gap=2) -> Tuple[List[dict], int]:
     """Humidity as small dots; first `level` filled (solid), rest hollow."""
     out = []
     for i in range(total):
@@ -194,7 +194,7 @@ def build_window_camera(d: dict, cam_img, fb) -> dict:
     kids: List[dict] = []
 
     # Header
-    kids.append(_text(4, 2, f"P2S  {stage}", width=150))
+    kids.append(_text(4, 2, f"{fb.PRINTER_LABEL}  {stage}", width=150))
     kids.append(_text_right(2, 2, f"{pct}%  {datetime.now().strftime('%H:%M')}"))
     kids.append(_hline(0, HEADER_H - 1, W))
 
@@ -301,6 +301,70 @@ def build_window_camera(d: dict, cam_img, fb) -> dict:
     return {"default": [root]}
 
 
+def build_window_data_only(d: dict, fb) -> dict:
+    """Full-width vector layout used when the camera is disabled or fails."""
+    stage = d.get("gcode_state") or "?"
+    pct = d.get("mc_percent") or 0
+    eta = d.get("mc_remaining_time")
+    nozzle = fb._to_float(d.get("nozzle_temper"))
+    nozzle2 = fb._right_nozzle_temp(d)
+    bed = fb._to_float(d.get("bed_temper"))
+    chamber_f = fb._chamber_temp(d)
+    layer = d.get("layer_num")
+    total_layer = d.get("total_layer_num")
+    name = d.get("subtask_name") or d.get("gcode_file") or ""
+    spd = d.get("spd_lvl")
+    tray = fb.tray_label(d)
+    trays = fb.get_trays(d)
+
+    kids: List[dict] = []
+    y = 2
+    kids.append(_text(6, y, f"{fb.PRINTER_LABEL}  {stage}", width=210))
+    kids.append(_text_right(8, y + 1, datetime.now().strftime("%H:%M")))
+    y += 18
+    if name:
+        short = name if len(name) < 38 else name[:35] + "..."
+        kids.append(_text(6, y, short, width=W - 12))
+    y += 14
+    kids.append(_text(6, y, f"Progress  {pct}%", width=165))
+    if layer and total_layer:
+        kids.append(_text(180, y, f"L {layer}/{total_layer}", width=110))
+    y += 14
+    kids.append(_bar(6, y, 284, 8, pct))
+    y += 14
+
+    if nozzle2 is not None:
+        kids.append(_text(6, y, f"N1 {nozzle:.0f}°", width=68))
+        kids.append(_text(78, y, f"N2 {nozzle2:.0f}°", width=68))
+        kids.append(_text(148, y, f"B {bed:.0f}°", width=68))
+    else:
+        kids.append(_text(6, y, f"N {nozzle:.0f}°", width=68))
+        kids.append(_text(78, y, f"B {bed:.0f}°", width=68))
+        if chamber_f is not None:
+            kids.append(_text(148, y, f"C {chamber_f:.0f}°", width=68))
+    extras = []
+    if tray:
+        extras.append(tray)
+    if spd in fb.SPEED_LABEL:
+        extras.append(fb.SPEED_LABEL[spd])
+    if extras:
+        kids.append(_text(220, y, "  ".join(extras), width=70))
+    y += 14
+    kids.append(_text(6, y, f"ETA  {fb.fmt_eta(eta)}", width=170))
+    y += 14
+    x = 6
+    for tr in trays[:4]:
+        label = f"{tr['label']}{'*' if tr['active'] else ''}"
+        ttype = tr["type"] if not tr["empty"] else "—"
+        kids.append(_text(x, y, f"{label} {ttype[:5]}", width=68))
+        x += 72
+    kids.append(_text_right(8, H - 13, datetime.now().strftime("%m-%d %H:%M")))
+
+    root = _el("div", {"position": "relative", "width": f"{W}px",
+                       "height": f"{H}px", "backgroundColor": WHITE}, children=kids)
+    return {"default": [root]}
+
+
 def build_window_hms(d: dict, fb) -> dict:
     """Rebuild _render_hms (full-screen ALERT) as a Canvas tree, with larger
     pixel fonts: ecode + description use text-pixel-16 so the error is legible
@@ -313,7 +377,7 @@ def build_window_hms(d: dict, fb) -> dict:
 
     kids: List[dict] = []
     kids.append(_el("div", _abs(0, 0, W, HDR_H, {"backgroundColor": BLACK})))
-    kids.append(_text(4, 3, "P2S ALERT", width=140, color=WHITE,
+    kids.append(_text(4, 3, f"{fb.PRINTER_LABEL} ALERT", width=180, color=WHITE,
                       font=F16, height=16, line_h=16))
     kids.append(_text(W - 86, 5, datetime.now().strftime("%m-%d %H:%M"),
                       width=82, color=WHITE, align="right",
