@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Fetch Bambu Lab P2S local status (LAN MQTT) and push to Quote/0 as image."""
+"""Fetch Bambu Lab local status (LAN MQTT) and push it to Quote/0."""
 import os, sys, json, time, ssl, logging, base64, io, threading
+from copy import deepcopy
 from datetime import datetime
 from typing import Optional, List
 from PIL import Image, ImageDraw, ImageFont
@@ -34,10 +35,12 @@ PRINTER_SN        = os.environ.get("PRINTER_SN", "").strip()
 PRINTER_ACCESS    = os.environ.get("PRINTER_ACCESS", "").strip()
 QUOTE0_API_KEY    = os.environ.get("QUOTE0_API_KEY", "").strip()
 QUOTE0_DEVICE_ID  = os.environ.get("QUOTE0_DEVICE_ID", "").strip()
+_INTERVAL_RAW     = os.environ.get("INTERVAL_SECONDS", "").strip()
 INTERVAL_SECONDS  = _envint("INTERVAL_SECONDS", 60)
 SHOW_CAMERA       = _envbool("SHOW_CAMERA", True)
 CAMERA_PROTO      = os.environ.get("CAMERA_PROTO", "auto").strip().lower()
 PUSH_MODE         = os.environ.get("PUSH_MODE", "canvas").strip().lower()  # image | canvas
+PRINTER_LABEL     = os.environ.get("PRINTER_LABEL", "").strip() or "Bambu"
 HMS_IGNORE        = {c.strip().upper() for c in os.environ.get("HMS_IGNORE", "").split(",") if c.strip()}
 _last_suppressed: set = set()
 
@@ -45,14 +48,47 @@ _missing = [k for k, v in {
     "PRINTER_IP": PRINTER_IP, "PRINTER_SN": PRINTER_SN, "PRINTER_ACCESS": PRINTER_ACCESS,
     "QUOTE0_API_KEY": QUOTE0_API_KEY, "QUOTE0_DEVICE_ID": QUOTE0_DEVICE_ID,
 }.items() if not v]
-if _missing:
-    log.warning("Missing env vars: %s", ", ".join(_missing))
 # =========================================================
 
 W, H = 296, 152
 QUOTE0_BASE = "https://dot.mindreset.tech/api/authV2/open/device"
 
-state = {"data": None, "lock": threading.Lock(), "connected": False}
+state: dict = {"data": None, "lock": threading.Lock(), "connected": False}
+
+
+def validate_config(require_required: bool = True) -> List[str]:
+    """Return configuration errors without exiting.
+
+    Validation is deliberately called from ``main`` rather than at import
+    time, so the offline preview and unit tests can import rendering helpers
+    without real printer or Quote/0 credentials.
+    """
+    errors: List[str] = []
+    if require_required and _missing:
+        errors.append("missing required env vars: " + ", ".join(_missing))
+    if _INTERVAL_RAW:
+        try:
+            interval = int(_INTERVAL_RAW)
+        except ValueError:
+            errors.append("INTERVAL_SECONDS must be a positive integer")
+        else:
+            if interval <= 0:
+                errors.append("INTERVAL_SECONDS must be greater than 0")
+    elif INTERVAL_SECONDS <= 0:
+        errors.append("INTERVAL_SECONDS must be greater than 0")
+    if PUSH_MODE not in {"canvas", "image"}:
+        errors.append("PUSH_MODE must be one of: canvas, image")
+    if CAMERA_PROTO not in {"auto", "rtsps", "jpeg"}:
+        errors.append("CAMERA_PROTO must be one of: auto, rtsps, jpeg")
+    if not PRINTER_LABEL.strip():
+        errors.append("PRINTER_LABEL must not be empty")
+    return errors
+
+
+def snapshot_state() -> Optional[dict]:
+    """Take a consistent, recursively independent MQTT state snapshot."""
+    with state["lock"]:
+        return deepcopy(state["data"]) if state["data"] is not None else None
 
 
 def _to_float(v, default: float = 0.0) -> float:
@@ -355,7 +391,7 @@ def color_swatch(color_hex: str, size: int = 7) -> Image.Image:
 # --------- HMS error code lookup (Bambu public table) ---------
 HMS_DB_URL = "https://e.bambulab.com/query.php"
 HMS_CACHE_PATH = "/tmp/bambu_hms.json"
-HMS_DB = {}  # "ECODE16HEX" -> "description"
+HMS_DB: dict = {}  # "ECODE16HEX" -> "description"
 
 
 def load_hms_db():
@@ -467,18 +503,19 @@ def render_image(d: dict) -> str:
 
 def render_canvas_window(d: dict) -> dict:
     """Build a Canvas element tree for `d`: vector div/span/CSS layout, with
-    the camera frame as the only <img>. HMS alert and data-only paths reuse
-    the camera builder (camera frame just omitted)."""
+    the camera frame as the only large <img>."""
     visible_hms = _visible_hms(d)
     if visible_hms:
         return _canvas.build_window_hms({**d, "hms": visible_hms}, sys.modules[__name__])
     cam = grab_camera_frame() if SHOW_CAMERA else None
-    return _canvas.build_window_camera(d, cam, sys.modules[__name__])
+    if cam is not None:
+        return _canvas.build_window_camera(d, cam, sys.modules[__name__])
+    return _canvas.build_window_data_only(d, sys.modules[__name__])
 
 
 def _render_hms(img, draw, ft, fm, fs, d):
     draw.rectangle([0, 0, W, 18], fill="black")
-    draw.text((4, 1), "P2S  ALERT", font=ft, fill="white")
+    draw.text((4, 1), f"{PRINTER_LABEL}  ALERT", font=ft, fill="white")
     draw.text((W - 76, 4), datetime.now().strftime("%m-%d %H:%M"), font=fs, fill="white")
     draw.rectangle([0, 0, W - 1, H - 1], outline="black")
 
@@ -529,7 +566,7 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
     img.paste(cam, (0, HEADER_H))
 
     draw.rectangle([0, 0, W, HEADER_H - 1], fill="white")
-    draw.text((4, 1), f"P2S  {stage}", font=ft, fill="black")
+    draw.text((4, 1), f"{PRINTER_LABEL}  {stage}", font=ft, fill="black")
     right_hdr = f"{pct}%  {datetime.now().strftime('%H:%M')}"
     draw.text((W - 76, 2), right_hdr, font=fs, fill="black")
     draw.line([(0, HEADER_H - 1), (W, HEADER_H - 1)], fill="black")
@@ -623,7 +660,7 @@ def _render_data_only(img, draw, ft, fm, fs, d):
     tray = tray_label(d)
 
     y = 2
-    draw.text((6, y), f"P2S  {stage}", font=ft, fill="black")
+    draw.text((6, y), f"{PRINTER_LABEL}  {stage}", font=ft, fill="black")
     draw.text((230, y + 2), datetime.now().strftime("%H:%M"), font=fs, fill="black")
     y += 18
     if name:
@@ -706,6 +743,11 @@ def push_image(image_b64: str):
 
 
 if __name__ == "__main__":
+    config_errors = validate_config()
+    if config_errors:
+        for error in config_errors:
+            log.error("Configuration error: %s", error)
+        raise SystemExit(2)
     log.info("Starting bambu loop ip=%s sn=%s interval=%ds camera=%s push=%s",
              PRINTER_IP, PRINTER_SN[:6] + "..." if PRINTER_SN else "<unset>",
              INTERVAL_SECONDS, SHOW_CAMERA, PUSH_MODE)
@@ -723,16 +765,17 @@ if __name__ == "__main__":
         time.sleep(0.5)
     while True:
         try:
-            with state["lock"]:
-                d = dict(state["data"]) if state["data"] else None
+            d = snapshot_state()
             if d is None:
                 msg = "MQTT connecting..." if not state["connected"] else "Waiting first push..."
                 if PUSH_MODE == "canvas":
                     _canvas.push_window(
-                        _canvas.build_window_status("P2S Offline", [msg, f"Host {PRINTER_IP or '?'}"]),
+                        _canvas.build_window_status(
+                            f"{PRINTER_LABEL} Offline", [msg, f"Host {PRINTER_IP or '?'}"]),
                         QUOTE0_DEVICE_ID, QUOTE0_API_KEY)
                 else:
-                    push_image(render_status_image("P2S Offline", [msg, f"Host {PRINTER_IP or '?'}"]))
+                    push_image(render_status_image(
+                        f"{PRINTER_LABEL} Offline", [msg, f"Host {PRINTER_IP or '?'}"]))
             elif PUSH_MODE == "canvas":
                 _canvas.push_window(render_canvas_window(d), QUOTE0_DEVICE_ID, QUOTE0_API_KEY)
             else:
