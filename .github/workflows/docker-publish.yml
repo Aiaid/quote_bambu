@@ -100,7 +100,7 @@ jobs:
             echo "dh_image=${DOCKERHUB_USERNAME}/${GITHUB_REPOSITORY##*/}" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digest-*
