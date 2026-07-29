@@ -8,6 +8,29 @@ updates:
       time: "03:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
+    groups:
+      runtime-minor-and-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-minor-and-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # These newer release lines require Python 3.10+, while Quote Bambu
+      # still tests and supports Python 3.9.
+      - dependency-name: requests
+        versions:
+          - ">= 2.34"
+      - dependency-name: Pillow
+        update-types:
+          - version-update:semver-major
+      - dependency-name: pytest
+        update-types:
+          - version-update:semver-major
     labels:
       - dependencies
       - python
@@ -20,6 +43,23 @@ updates:
       time: "03:15"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 3
+    groups:
+      docker-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # FFmpeg major upgrades require synchronized GPL/source notices.
+      - dependency-name: mwader/static-ffmpeg
+        update-types:
+          - version-update:semver-major
+      # Keep the production runtime on the reviewed Python 3.12 series.
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     labels:
       - dependencies
       - docker
@@ -32,6 +72,10 @@ updates:
       time: "03:30"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     labels:
       - dependencies
       - github-actions
