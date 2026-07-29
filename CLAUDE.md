@@ -81,7 +81,9 @@ HMS view (`_render_hms`): black header bar + per-error ecode + wrapped English d
 ## Conventions & invariants — things not to break
 
 - **No config file** — everything via env vars. Missing required vars warn (don't crash), so `preview.py` works without them. `_envbool`/`_envint` parse leniently.
-- **Python 3.9 compatible.** `preview.py` runs against the user's macOS system Python 3.9, so avoid 3.10+ syntax — no `X | None`, use `Optional[X]` from `typing`.
+- **Python 3.10+ compatible.** Security-supported dependency releases require
+  Python 3.10 or newer. Keep CI green on both 3.10 and the production runtime's
+  Python 3.12.
 - **Render helpers take `(img, draw, ft, fm, fs, d)`** so they're driveable from `preview.py`. Fonts: `ft`=13pt bold, `fm`=11pt, `fs`=10pt.
 - **Lock discipline** — main loop snapshots `dict(state["data"])` under `state["lock"]` before rendering; never render off the live dict.
 - **paho v2 callback API** (`CallbackAPIVersion.VERSION2`) — `on_connect` has 5 args (`client, userdata, flags, rc, properties`).

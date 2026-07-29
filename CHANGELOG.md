@@ -12,10 +12,11 @@ versioning once tagged releases begin.
 - Build both amd64 and arm64 containers in pull requests without publishing
   them.
 - Check that direct dependency pins and generated lock files stay synchronized.
-- Update pytest to 8.4.2 while retaining the project's Python 3.9 support
-  boundary.
-- Group future Dependabot updates and defer dependency release lines that
-  require Python 3.10+ or a coordinated FFmpeg license/source review.
+- Raise the local development minimum from Python 3.9 to 3.10 so security-fixed
+  dependency releases can be installed.
+- Update Pillow to 12.3.0, requests to 2.34.2, and pytest to 9.1.1.
+- Group future Dependabot updates and defer FFmpeg release lines that require a
+  coordinated license/source review.
 
 ## 0.8.0 - 2026-07-29
 

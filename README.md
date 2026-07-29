@@ -99,7 +99,7 @@ docker compose logs -f
 
 ## 离线预览
 
-不连打印机也能调版面。项目支持 Python 3.9+；建议用虚拟环境安装锁定版本：
+不连打印机也能调版面。项目支持 Python 3.10+；建议用虚拟环境安装锁定版本：
 
 ```bash
 python3 -m venv .venv

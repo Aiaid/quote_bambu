@@ -26,7 +26,7 @@ def _assert_locked(expected: dict[str, str], lock_path: str) -> None:
         if locked.get(name) != version
     }
     assert not mismatches, (
-        f"{lock_path} is stale; regenerate it for Python 3.9: {mismatches}"
+        f"{lock_path} is stale; regenerate it for Python 3.10: {mismatches}"
     )
 
 

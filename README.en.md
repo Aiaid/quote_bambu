@@ -161,7 +161,7 @@ printer's MQTT, RTSPS, or JPEG ports to the internet. See
 
 ## Local preview and tests
 
-Quote Bambu supports Python 3.9+.
+Quote Bambu supports Python 3.10+.
 
 ```bash
 python3 -m venv .venv
