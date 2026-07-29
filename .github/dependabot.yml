@@ -19,18 +19,6 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      # These newer release lines require Python 3.10+, while Quote Bambu
-      # still tests and supports Python 3.9.
-      - dependency-name: requests
-        versions:
-          - ">= 2.33"
-      - dependency-name: Pillow
-        update-types:
-          - version-update:semver-major
-      - dependency-name: pytest
-        update-types:
-          - version-update:semver-major
     labels:
       - dependencies
       - python
