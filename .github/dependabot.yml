@@ -24,7 +24,7 @@ updates:
       # still tests and supports Python 3.9.
       - dependency-name: requests
         versions:
-          - ">= 2.34"
+          - ">= 2.33"
       - dependency-name: Pillow
         update-types:
           - version-update:semver-major

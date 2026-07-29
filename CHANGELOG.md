@@ -11,6 +11,9 @@ versioning once tagged releases begin.
 - Upgrade GitHub Actions to their current Node.js 24-based major versions.
 - Build both amd64 and arm64 containers in pull requests without publishing
   them.
+- Check that direct dependency pins and generated lock files stay synchronized.
+- Update pytest to 8.4.2 while retaining the project's Python 3.9 support
+  boundary.
 - Group future Dependabot updates and defer dependency release lines that
   require Python 3.10+ or a coordinated FFmpeg license/source review.
 
