@@ -1,6 +1,6 @@
 FROM mwader/static-ffmpeg:7.1@sha256:a8090df5f5608daef387e1b2e93b98aaacb4d92153ad904e7d715c725724fca4 AS ffmpeg
 
-FROM python:3.12-alpine
+FROM python:3.14-alpine
 
 COPY --from=ffmpeg /ffmpeg /usr/local/bin/ffmpeg
 COPY --from=ffmpeg /doc /usr/share/doc/ffmpeg/html
