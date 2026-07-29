@@ -6,6 +6,12 @@ versioning once tagged releases begin.
 
 ## Unreleased
 
+### Changed
+
+- Upgrade GitHub Actions to their current Node.js 24-based major versions.
+- Group future Dependabot updates and defer dependency release lines that
+  require Python 3.10+ or a coordinated FFmpeg license/source review.
+
 ## 0.8.0 - 2026-07-29
 
 ### Added
