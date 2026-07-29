@@ -9,6 +9,8 @@ versioning once tagged releases begin.
 ### Changed
 
 - Upgrade GitHub Actions to their current Node.js 24-based major versions.
+- Build both amd64 and arm64 containers in pull requests without publishing
+  them.
 - Group future Dependabot updates and defer dependency release lines that
   require Python 3.10+ or a coordinated FFmpeg license/source review.
 
