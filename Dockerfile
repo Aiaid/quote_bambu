@@ -1,4 +1,4 @@
-FROM mwader/static-ffmpeg:7.1@sha256:a8090df5f5608daef387e1b2e93b98aaacb4d92153ad904e7d715c725724fca4 AS ffmpeg
+FROM mwader/static-ffmpeg:8.1@sha256:6fb848850b647688910ccf88112a96afe5ee46bcd54ee41daf875cac98b02bff AS ffmpeg
 
 FROM python:3.12-alpine
 
