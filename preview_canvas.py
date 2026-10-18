@@ -10,7 +10,7 @@ This is an APPROXIMATION: the real device uses its own pixel fonts
 (text-pixel-12-zpix / text-pixel-16), so on-device text width and glyphs differ
 slightly. Use it for positioning/overlap, not pixel-exact fidelity.
 
-    python3 preview_canvas.py
+    uv run preview_canvas.py
     open canvas_camera_x3.png
 """
 import base64
@@ -142,4 +142,7 @@ if __name__ == "__main__":
 
     fb.grab_camera_frame = lambda: None
     _render(fb.render_canvas_window(MOCK_PRINTING), "canvas_dataonly.png")
+    fb.SHOW_HMS = True
     _render(fb.render_canvas_window(MOCK_HMS), "canvas_hms.png")
+    fb.SHOW_HMS = False
+    _render(fb.render_canvas_window(MOCK_HMS), "canvas_hms_hidden.png")

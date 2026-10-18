@@ -38,6 +38,8 @@ QUOTE0_DEVICE_ID  = os.environ.get("QUOTE0_DEVICE_ID", "").strip()
 _INTERVAL_RAW     = os.environ.get("INTERVAL_SECONDS", "").strip()
 INTERVAL_SECONDS  = _envint("INTERVAL_SECONDS", 60)
 SHOW_CAMERA       = _envbool("SHOW_CAMERA", True)
+SHOW_HMS          = _envbool("SHOW_HMS", False)
+SHOW_DATE         = _envbool("SHOW_DATE", True)
 CAMERA_PROTO      = os.environ.get("CAMERA_PROTO", "auto").strip().lower()
 PUSH_MODE         = os.environ.get("PUSH_MODE", "canvas").strip().lower()  # image | canvas
 PRINTER_LABEL     = os.environ.get("PRINTER_LABEL", "").strip() or "Bambu"
@@ -466,9 +468,10 @@ def hms_lines(hms_list) -> List[str]:
 
 
 def _visible_hms(d: dict) -> list:
-    """Apply HMS_IGNORE filtering and log suppression changes once. Shared by
-    the image and canvas render paths."""
+    """Apply display settings and per-code filtering for both render paths."""
     global _last_suppressed
+    if not SHOW_HMS:
+        return []
     all_hms = d.get("hms") or []
     visible_hms = [h for h in all_hms
                    if f"{h.get('attr',0):08X}{h.get('code',0):08X}" not in HMS_IGNORE]
@@ -482,6 +485,24 @@ def _visible_hms(d: dict) -> list:
                      ",".join(sorted(_last_suppressed)))
         _last_suppressed = suppressed
     return visible_hms
+
+
+def header_timestamp() -> str:
+    """Local render time; TZ controls the service/container timezone."""
+    return datetime.now().strftime("%m-%d %H:%M" if SHOW_DATE else "%H:%M")
+
+
+def _draw_header(draw, title, title_font, clock_font, *, top=1, color="black"):
+    """Reserve measured space for the clock and truncate long printer labels."""
+    timestamp = header_timestamp()
+    clock_x = W - 4 - draw.textlength(timestamp, font=clock_font)
+    available = clock_x - 8
+    if draw.textlength(title, font=title_font) > available:
+        while title and draw.textlength(title + "..", font=title_font) > available:
+            title = title[:-1]
+        title += ".."
+    draw.text((4, top), title, font=title_font, fill=color)
+    draw.text((clock_x, top + 1), timestamp, font=clock_font, fill=color)
 
 
 def render_image(d: dict) -> str:
@@ -515,8 +536,7 @@ def render_canvas_window(d: dict) -> dict:
 
 def _render_hms(img, draw, ft, fm, fs, d):
     draw.rectangle([0, 0, W, 18], fill="black")
-    draw.text((4, 1), f"{PRINTER_LABEL}  ALERT", font=ft, fill="white")
-    draw.text((W - 76, 4), datetime.now().strftime("%m-%d %H:%M"), font=fs, fill="white")
+    _draw_header(draw, f"{PRINTER_LABEL}  ALERT", ft, fs, color="white")
     draw.rectangle([0, 0, W - 1, H - 1], outline="black")
 
     y = 21
@@ -566,9 +586,7 @@ def _render_with_camera(img, draw, ft, fm, fs, d, cam):
     img.paste(cam, (0, HEADER_H))
 
     draw.rectangle([0, 0, W, HEADER_H - 1], fill="white")
-    draw.text((4, 1), f"{PRINTER_LABEL}  {stage}", font=ft, fill="black")
-    right_hdr = f"{pct}%  {datetime.now().strftime('%H:%M')}"
-    draw.text((W - 76, 2), right_hdr, font=fs, fill="black")
+    _draw_header(draw, f"{PRINTER_LABEL}  {stage}", ft, fs)
     draw.line([(0, HEADER_H - 1), (W, HEADER_H - 1)], fill="black")
 
     draw.rectangle([CAM_W, HEADER_H, W, H - BOTTOM_H], fill="white")
@@ -660,8 +678,7 @@ def _render_data_only(img, draw, ft, fm, fs, d):
     tray = tray_label(d)
 
     y = 2
-    draw.text((6, y), f"{PRINTER_LABEL}  {stage}", font=ft, fill="black")
-    draw.text((230, y + 2), datetime.now().strftime("%H:%M"), font=fs, fill="black")
+    _draw_header(draw, f"{PRINTER_LABEL}  {stage}", ft, fs, top=y)
     y += 18
     if name:
         short = name if len(name) < 38 else name[:35] + "..."
@@ -700,7 +717,6 @@ def _render_data_only(img, draw, ft, fm, fs, d):
             ttype = tr["type"] if not tr["empty"] else "—"
             draw.text((x, y), f"{label} {ttype[:5]}", font=fs, fill="black")
             x += 72
-    draw.text((220, H - 12), datetime.now().strftime("%m-%d %H:%M"), font=fs, fill="black")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -748,10 +764,11 @@ if __name__ == "__main__":
         for error in config_errors:
             log.error("Configuration error: %s", error)
         raise SystemExit(2)
-    log.info("Starting bambu loop ip=%s sn=%s interval=%ds camera=%s push=%s",
+    log.info("Starting bambu loop ip=%s sn=%s interval=%ds camera=%s push=%s hms=%s date=%s",
              PRINTER_IP, PRINTER_SN[:6] + "..." if PRINTER_SN else "<unset>",
-             INTERVAL_SECONDS, SHOW_CAMERA, PUSH_MODE)
-    load_hms_db()
+             INTERVAL_SECONDS, SHOW_CAMERA, PUSH_MODE, SHOW_HMS, SHOW_DATE)
+    if SHOW_HMS:
+        load_hms_db()
     client = start_mqtt()
     # Wait briefly for MQTT to connect and the first pushall to arrive,
     # otherwise the first render races ahead and pushes "MQTT connecting..."

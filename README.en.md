@@ -32,11 +32,11 @@ firmware version, and redacted logs are welcome.
   refresh after connecting. It does not send printer-control commands.
 - Captures RTSPS or JPEG camera frames, crops them to 16:9, and converts them to
   the project's 1-bit output with Floyd-Steinberg dithering.
-- Shows printer state, progress, clock, nozzle/bed/chamber temperatures, AMS
+- Shows printer state, progress, date and clock, nozzle/bed/chamber temperatures, AMS
   humidity and temperature, four filament trays, ETA, layer count, and job
   name.
-- Switches to a full-screen alert when Bambu HMS errors are present. English
-  HMS descriptions are downloaded from Bambu's public endpoint at startup,
+- Hides HMS alerts by default. Set `SHOW_HMS=true` to enable full-screen alerts.
+  When enabled, English HMS descriptions are downloaded at startup,
   with a temporary local cache as fallback.
 - Falls back to a data-only layout when the camera is disabled or unavailable.
 - Supports Quote/0 Canvas API and Image API output.
@@ -106,6 +106,8 @@ docker compose --profile dev up bambu_cc_dev
 | `QUOTE0_DEVICE_ID` | Quote/0 device serial number | required |
 | `INTERVAL_SECONDS` | Display update interval | `60` |
 | `SHOW_CAMERA` | Enable camera capture (`true` / `false`) | `true` |
+| `SHOW_HMS` | Show full-screen HMS alerts; `false` keeps the normal status view | `false` |
+| `SHOW_DATE` | Include month-day in the header; `false` shows time only | `true` |
 | `PUSH_MODE` | `canvas` or `image` | `canvas` |
 | `CAMERA_PROTO` | `auto`, `rtsps`, or `jpeg` | `auto` |
 | `HMS_IGNORE` | Comma-separated 16-character hexadecimal HMS ecodes that should not take over the display | empty |
@@ -114,6 +116,30 @@ docker compose --profile dev up bambu_cc_dev
 Required values, supported modes, and a positive refresh interval are validated
 at startup. Invalid configuration exits with status 2.
 
+### Ignoring persistent HMS notices
+
+`SHOW_HMS=false` keeps the normal status view even when the printer reports HMS
+entries. Set `SHOW_HMS=true` in `.env` to restore the full-screen `ALERT` view.
+When enabled, `HMS_IGNORE` can suppress individual persistent notices.
+
+`SHOW_DATE=true` displays a header such as `10-18 14:30`; set `SHOW_DATE=false`
+for `14:30` only. This is the render time, refreshed with `INTERVAL_SECONDS`,
+using the service/container's `TZ` timezone. After editing `.env`, run
+`docker compose up -d --force-recreate` to apply settings. Local source changes
+require a rebuilt image or the development container.
+
+Separate multiple ecodes with ASCII commas. Do not include the `HMS_` prefix or
+group separators:
+
+```ini
+SHOW_HMS=true
+HMS_IGNORE=0500030000020019,0700420000020025
+```
+
+This setting changes only Quote Bambu's display logic. It does not acknowledge,
+clear, or disable the printer's HMS warning or any printer safety protection.
+Remove an ecode from the list after the underlying fault has been resolved.
+
 ## Privacy and data flow
 
 - Printer telemetry and optional camera frames are read from the local network.
@@ -121,7 +147,7 @@ at startup. Invalid configuration exits with status 2.
   can contain the print-job name and, when enabled, the captured camera image.
   Canvas mode also uploads its declarative layout and embedded images; it is
   not a fully local display path.
-- At startup, Quote Bambu contacts Bambu's public HMS endpoint for error
+- With `SHOW_HMS=true`, Quote Bambu contacts Bambu's public HMS endpoint at startup for error
   descriptions. If that fails, it uses a temporary cache or shows the raw code.
 - The printer LAN access code is not intentionally sent to Quote/0. The
   container process still reads both the printer access code and Quote/0 API

@@ -83,7 +83,7 @@ def _text(left, top, text, *, width=None, color=BLACK, align=None,
 
 
 def _text_right(right, top, text, *, color=BLACK, font=PIXEL_FONT,
-                height=11, line_h=11) -> dict:
+                height=11, line_h=11, width=None) -> dict:
     """Right-anchored text: positioned by its RIGHT edge (`right` px from the
     screen's right side) so values of different widths (e.g. "8%" vs "100%")
     line up on the right. textAlign:right on a shrink-wrapped span doesn't
@@ -91,6 +91,8 @@ def _text_right(right, top, text, *, color=BLACK, font=PIXEL_FONT,
     s = {"position": "absolute", "right": f"{right}px", "top": f"{top}px",
          "height": f"{height}px", "color": color, "lineHeight": f"{line_h}px",
          "whiteSpace": "nowrap", "textAlign": "right"}
+    if width is not None:
+        s.update({"width": f"{width}px", "overflow": "hidden"})
     return {"type": "span", "props": {"style": s, "children": str(text), "tw": font}}
 
 
@@ -194,8 +196,8 @@ def build_window_camera(d: dict, cam_img, fb) -> dict:
     kids: List[dict] = []
 
     # Header
-    kids.append(_text(4, 2, f"{fb.PRINTER_LABEL}  {stage}", width=150))
-    kids.append(_text_right(2, 2, f"{pct}%  {datetime.now().strftime('%H:%M')}"))
+    kids.append(_text(4, 2, f"{fb.PRINTER_LABEL}  {stage}", width=188, ellipsis=True))
+    kids.append(_text_right(4, 2, fb.header_timestamp(), width=96))
     kids.append(_hline(0, HEADER_H - 1, W))
 
     # Camera frame (the only <img>) or a placeholder box
@@ -319,8 +321,8 @@ def build_window_data_only(d: dict, fb) -> dict:
 
     kids: List[dict] = []
     y = 2
-    kids.append(_text(6, y, f"{fb.PRINTER_LABEL}  {stage}", width=210))
-    kids.append(_text_right(8, y + 1, datetime.now().strftime("%H:%M")))
+    kids.append(_text(4, y, f"{fb.PRINTER_LABEL}  {stage}", width=188, ellipsis=True))
+    kids.append(_text_right(4, y, fb.header_timestamp(), width=96))
     y += 18
     if name:
         short = name if len(name) < 38 else name[:35] + "..."
@@ -358,7 +360,6 @@ def build_window_data_only(d: dict, fb) -> dict:
         ttype = tr["type"] if not tr["empty"] else "—"
         kids.append(_text(x, y, f"{label} {ttype[:5]}", width=68))
         x += 72
-    kids.append(_text_right(8, H - 13, datetime.now().strftime("%m-%d %H:%M")))
 
     root = _el("div", {"position": "relative", "width": f"{W}px",
                        "height": f"{H}px", "backgroundColor": WHITE}, children=kids)
@@ -377,10 +378,10 @@ def build_window_hms(d: dict, fb) -> dict:
 
     kids: List[dict] = []
     kids.append(_el("div", _abs(0, 0, W, HDR_H, {"backgroundColor": BLACK})))
-    kids.append(_text(4, 3, f"{fb.PRINTER_LABEL} ALERT", width=180, color=WHITE,
-                      font=F16, height=16, line_h=16))
-    kids.append(_text(W - 86, 5, datetime.now().strftime("%m-%d %H:%M"),
-                      width=82, color=WHITE, align="right",
+    kids.append(_text(4, 3, f"{fb.PRINTER_LABEL} ALERT", width=188, color=WHITE,
+                      ellipsis=True, font=F16, height=16, line_h=16))
+    kids.append(_text_right(4, 5, fb.header_timestamp(),
+                      width=96, color=WHITE,
                       font=PIXEL_FONT, height=11, line_h=11))
 
     y = HDR_H + 4

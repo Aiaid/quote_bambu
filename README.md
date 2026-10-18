@@ -24,11 +24,11 @@ Developer Mode 行为可能变化；欢迎通过 issue 提交带固件版本的�
 - RTSPS/JPEG 摄像头抓帧 → cover-crop 16:9 → Floyd-Steinberg dither
   为项目输出所需的 1-bit 图像
 - 屏幕版面：
-  - 顶条：状态 + 进度 + 时间
+  - 顶条：状态 + 日期（可关闭）+ 时间
   - 左 200×112：摄像头快照
   - 右 96×112：温度（喷头/床/腔体）、AMS 湿度雨滴 + 内温、4 个料盘（颜色块 + 料种 + 剩余量）、ETA、层数
   - 底条：文件名 + 全宽进度条 + %
-- HMS 报错时全屏切换到 ALERT 版面，启动时拉 Bambu 官方在线 HMS 表显示英文描述
+- HMS 警告默认不显示；设置 `SHOW_HMS=true` 后启用全屏 ALERT，并在启动时拉 Bambu 官方在线 HMS 表显示英文描述
 - ffmpeg 抓帧失败自动降级到纯数据版面
 
 ## 两种推送模式（PUSH_MODE）
@@ -89,13 +89,37 @@ docker compose logs -f
 | `QUOTE0_DEVICE_ID` | Quote/0 设备 SN | 必填 |
 | `INTERVAL_SECONDS` | 推屏间隔 | `60` |
 | `SHOW_CAMERA` | `true` 抓帧作背景 / `false` 纯数据 | `true` |
+| `SHOW_HMS` | 是否显示 HMS 全屏警告；`false` 保留正常状态版面 | `false` |
+| `SHOW_DATE` | 顶栏显示月-日与时间；`false` 仅显示时间 | `true` |
 | `PUSH_MODE` | `canvas` 走 Canvas API 用 div/span/CSS 矢量排版(详见下) / `image` 走 Image API 推整张 PNG | `canvas` |
 | `CAMERA_PROTO` | `auto` / `rtsps`(P2S/X1/H2 系列,port 322)/ `jpeg`(P1P/P1S/A1/A1 mini,port 6000 TLS) | `auto` |
-| `HMS_IGNORE` | 逗号分隔的 16 位 hex ecode 列表,命中的不切 HMS 全屏(用于 mute 持久性 warning) | 空 |
+| `HMS_IGNORE` | 逗号分隔的 16 位十六进制 HMS ecode；命中的报码不切换到 HMS 全屏 | 空 |
 | `TZ` | 容器时区(IANA 名),影响顶栏时钟和 HMS 时间。slim 镜像默认 UTC | `Asia/Shanghai` (建议) |
 
 启动时会校验必填变量、`PUSH_MODE`、`CAMERA_PROTO` 和正数
 `INTERVAL_SECONDS`；配置错误会以退出码 2 停止，而不是带空凭证继续运行。
+
+### 忽略持续性 HMS 提示
+
+默认 `SHOW_HMS=false`，打印机上报 HMS 警告时仍显示普通状态页。要恢复全屏
+`ALERT`，在 `.env` 设置 `SHOW_HMS=true`。开启后，可用 `HMS_IGNORE` 单独屏蔽
+持续性提示的报码。
+
+日期默认开启（`SHOW_DATE=true`），顶栏显示 `10-18 14:30` 这样的月-日与时间；
+设置 `SHOW_DATE=false` 后仅显示 `14:30`。日期时间是本次渲染时间，随
+`INTERVAL_SECONDS` 刷新，使用服务/容器的 `TZ` 时区。修改 `.env` 后运行
+`docker compose up -d --force-recreate` 让设置生效；本地源码改动需先构建或使用开发容器。
+
+多个报码使用英文逗号分隔，不要带 `HMS_` 前缀或分隔符：
+
+```ini
+SHOW_HMS=true
+HMS_IGNORE=0500030000020019,0700420000020025
+```
+
+这项配置只改变 Quote Bambu 的显示逻辑，不会确认、清除或关闭打印机自身的
+HMS 报警，也不会影响打印机的安全保护。处理完实际故障后，应从列表中移除
+对应报码。
 
 ## 离线预览
 
@@ -148,7 +172,7 @@ Canvas 版面同理，跑 `python3 preview_canvas.py`，输出 `canvas_camera.pn
 
 ## HMS 错误库
 
-启动时拉 `https://e.bambulab.com/query.php?lang=en&f=hms`，缓存到 `/tmp/bambu_hms.json`。下次断网时回退到缓存；缓存也丢了就只显示 raw ecode（16 位 hex）。
+仅在 `SHOW_HMS=true` 时，启动拉 `https://e.bambulab.com/query.php?lang=en&f=hms`，缓存到 `/tmp/bambu_hms.json`。下次断网时回退到缓存；缓存也丢了就只显示 raw ecode（16 位 hex）。
 
 ## 安全 / TLS
 
@@ -168,7 +192,7 @@ RTSPS 使用的 ffmpeg 构建默认也不验证证书。访问码当前必须出
 - 为了更新屏幕，渲染后的状态会 POST 到 Quote/0 服务；内容可能包含任务名，
   开启摄像头时还包含抓取的相机图。Canvas 模式同样会把声明式布局与嵌入图像
   提交到 Quote/0 云端，并非完全本地显示。
-- 启动时会访问 Bambu HMS 公共端点获取错误说明；失败时使用本地临时缓存或
+- 仅在 `SHOW_HMS=true` 时，启动会访问 Bambu HMS 公共端点获取错误说明；失败时使用本地临时缓存或
   仅显示错误码。
 - 项目不会主动把打印机 LAN 访问码提交给 Quote/0，但 Quote/0 API key 和
   打印机访问码都会由容器进程读取。请保护 `.env` 和运行主机。
