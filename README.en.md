@@ -14,6 +14,15 @@ a single Docker container.
 <sub>Camera layout in the default Canvas mode. The Image mode preview appears
 below.</sub>
 
+## Device demonstration
+
+![A hand-held Quote/0 displaying printer status in front of the Bambu Lab printer and printed parts](docs/media/quote-bambu-live-original.jpg)
+
+Exported from the original capture with format conversion, resizing, and metadata
+removal only; no AI retouching. The photo records the layout at capture time;
+current header settings, including the date option, may differ. It does not
+establish physical testing across all compatibility targets.
+
 ## Compatibility
 
 The intended compatibility targets are P2S (the primary development baseline),

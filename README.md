@@ -17,6 +17,14 @@ Developer Mode 行为可能变化；欢迎通过 issue 提交带固件版本的�
 
 <sub>Canvas 模式（默认）的摄像头版面。Image 模式见下方对比。</sub>
 
+## 真机演示
+
+![手持 Quote/0 显示打印状态，背景是 Bambu Lab 打印机和打印件](docs/media/quote-bambu-live-original.jpg)
+
+原始实拍导出，仅转换格式、缩小尺寸并移除照片元数据，未经 AI 修饰。
+照片记录拍摄时的版面，当前版本的日期等顶栏设置可能有所不同；
+这张照片不代表所有兼容目标机型均已实测。
+
 ## 功能
 
 - 本地 MQTT 订阅打印机状态；连接后向本地 request topic 发送一次
