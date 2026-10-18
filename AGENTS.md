@@ -112,7 +112,7 @@ Behavior: `INTERVAL_SECONDS` (60), `SHOW_CAMERA` (true), `SHOW_HMS` (false), `SH
 
 ## Documentation maintenance
 
-- Keep Chinese and English README configuration descriptions aligned.
+- Keep Chinese, English, and Japanese README configuration descriptions aligned.
 - Put new documents under categorized `docs/` subdirectories and index them in `docs/README.md`.
 - Track work by priority in `docs/design/roadmap.md`; archive completed items instead of deleting them.
 - Preserve unrelated changes from other sessions and stage only owned paths/hunks.
