@@ -102,7 +102,10 @@ if __name__ == "__main__":
     fb.SHOW_CAMERA = False
     save("preview_printing.png", MOCK_PRINTING)
     save("preview_idle.png", MOCK_IDLE)
+    fb.SHOW_HMS = True
     save("preview_hms.png", MOCK_HMS)
+    fb.SHOW_HMS = False
+    save("preview_hms_hidden.png", MOCK_HMS)
 
     fb.SHOW_CAMERA = True
     fb.grab_camera_frame = fake_camera_frame
