@@ -1,6 +1,6 @@
 # Quote Bambu
 
-English | [简体中文](README.md)
+English | [简体中文](README.md) | [日本語](README.ja.md)
 
 Push live Bambu Lab printer status to a Quote/0 e-paper display. Quote Bambu
 reads local-LAN MQTT telemetry, optionally captures a camera frame, and runs as
@@ -196,15 +196,12 @@ printer's MQTT, RTSPS, or JPEG ports to the internet. See
 
 ## Local preview and tests
 
-Quote Bambu supports Python 3.10+.
+Quote Bambu supports Python 3.10+. Use `uv` to run with locked dependencies.
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.lock
-pytest
-python preview.py
-python preview_canvas.py
+uv run --with-requirements requirements-dev.lock pytest
+uv run --with-requirements requirements-dev.lock python preview.py
+uv run --with-requirements requirements-dev.lock python preview_canvas.py
 ```
 
 The preview scripts render representative layouts without connecting to a

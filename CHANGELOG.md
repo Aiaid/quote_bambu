@@ -2,12 +2,22 @@
 
 Notable changes to Quote Bambu will be documented here. The project intends to
 follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic
-versioning once tagged releases begin.
+versioning. Changes below Unreleased are not yet included in a tagged release.
 
 ## Unreleased
 
+### Added
+
+- Add optional date headers with `SHOW_DATE`, enabled by default.
+- Add the `SHOW_HMS` switch for optional full-screen HMS alerts.
+- Add original device photos and Community Co-Creation submission materials.
+- Add a Japanese README and three-language submission pages.
+
 ### Changed
 
+- Hide full-screen HMS alerts by default while preserving `HMS_IGNORE` when
+  alerts are enabled.
+- Align local preview and test commands with the project's `uv` workflow.
 - Upgrade GitHub Actions to their current Node.js 24-based major versions.
 - Build both amd64 and arm64 containers in pull requests without publishing
   them.

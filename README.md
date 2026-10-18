@@ -1,6 +1,6 @@
 # Quote Bambu
 
-[English](README.en.md) · 简体中文
+[English](README.en.md) · 简体中文 · [日本語](README.ja.md)
 
 把 Bambu Lab 打印机的实时状态推到 Quote/0 电纸屏。本地 LAN MQTT +
 可选摄像头快照，单容器运行。
@@ -131,14 +131,12 @@ HMS 报警，也不会影响打印机的安全保护。处理完实际故障后�
 
 ## 离线预览
 
-不连打印机也能调版面。项目支持 Python 3.10+；建议用虚拟环境安装锁定版本：
+不连打印机也能调版面。项目支持 Python 3.10+；用 `uv` 安装锁定依赖并运行：
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.lock
-pytest
-python3 preview.py
+uv run --with-requirements requirements-dev.lock pytest
+uv run --with-requirements requirements-dev.lock python preview.py
+uv run --with-requirements requirements-dev.lock python preview_canvas.py
 ```
 
 输出 4 张 PNG（每张都有 `_x3` 放大版）：
@@ -147,9 +145,9 @@ python3 preview.py
 - `preview_idle.png` — 数据 fallback 版面（空闲）
 - `preview_hms.png` — HMS 报错版面（含真实英文描述）
 
-改 `fetch_bambu.py` 里 `_render_*` 函数的坐标 → 重跑 `preview.py` 即可所见即所得，不用动容器或打印机。
+改 `fetch_bambu.py` 里 `_render_*` 函数的坐标 → 重跑上面的 `preview.py` 命令即可所见即所得，不用动容器或打印机。
 
-Canvas 版面同理，跑 `python3 preview_canvas.py`，输出 `canvas_camera.png` / `canvas_dataonly.png` / `canvas_hms.png`（各带 `_x3`）。注意 Canvas 预览是**近似渲染**——本地用 Arial 模拟，真机用像素字体，字宽和截断略有差异，定位看个大概，像素级以真机为准。
+Canvas 版面同理，跑上面的 `preview_canvas.py` 命令，输出 `canvas_camera.png` / `canvas_dataonly.png` / `canvas_hms.png`（各带 `_x3`）。注意 Canvas 预览是**近似渲染**——本地用 Arial 模拟，真机用像素字体，字宽和截断略有差异，定位看个大概，像素级以真机为准。
 
 ## 屏幕版面要素
 
